@@ -2,39 +2,20 @@
 
 import re,sys
 
+from misc import DynInit
+
 class SMException(Exception): pass
 class EndOfData(SMException): pass
 class NoMatch(SMException): pass
+class SMFinished(SMException): pass
+class WrongMatch(SMException): pass
+class DataTimeout(Exception): pass
 
 def dbg(msg):
 	print >>sys.stderr,msg
 
 verbose=False
 quiet=False
-
-class DynInit(object):
-	_default_attrs={}
-	@classmethod
-	def _add_defaults(cls,dst,skip=None):
-		if skip is None: skip={}
-		for k in cls.__dict__: skip[k]=None
-		for k,v in cls._default_attrs.iteritems():
-			if k in dst or k in skip: continue
-			dst[k]=v.copy() if type(v)==dict else v[:] if type(v)==list else v
-		for base in cls.__bases__:
-			try: base._add_defaults(dst,skip)
-			except AttributeError: pass
-		return dst
-	def __init__(self,*args,**kwargs):
-		for k,v in self._add_defaults(kwargs).iteritems(): setattr(self,k,v)
-		for idx,value in enumerate(args): setattr(self,self._init_args[idx],value)
-
-class DynAttr(object):
-	def __getattr__(self,key):
-		if not key.startswith("get_"):
-			setattr(self,key,getattr(self,"get_%s"%key)())
-			return getattr(self,key)
-		raise AttributeError,"%s.%s has no %r"%(self.__class__.__module__,self.__class__.__name__,key)
 
 class Match(DynInit):
 	_default_attrs=dict(cond=None,start=None,end=None,data=None)
@@ -46,11 +27,15 @@ class Match(DynInit):
 class ReMatch(Match):
 	def __getitem__(self,key):
 		return self.rmatch.group(key)
-	def __repr__(self): return "<%s.%s@%x %r>"%(self.__class__.__module__,self.__class__.__name__,((1<<32)-1)&hash(self),self.cond.pattern)
+	def __repr__(self): return "<Re:%r>"%(self.cond.pattern,)
 
 class CondClass(DynInit):
 	def match(self,data):
 		raise NotImplementedError,"match() needs to be implemented"
+	@classmethod
+	def listify(cls,tgt):
+		if (type(tgt) in (str,unicode) or isinstance(tgt,CondClass)): return [tgt]
+		return tgt
 
 class OnNever(CondClass):
 	def match(self,data): raise NoMatch
@@ -67,7 +52,7 @@ class OnRegex(CondClass):
 		rmatch=self.regex.search(data)
 		if rmatch is None: raise NoMatch
 		return ReMatch(cond=self,start=rmatch.start(),end=rmatch.end(),data=data,rmatch=rmatch)
-	def __repr__(self): return "<%s.%s %r>"%(self.__class__.__module__,self.__class__.__name__,self.pattern)
+	def __repr__(self): return "<OnRe:%r>"%(self.pattern,)
 
 class OnString(CondClass):
 	_init_args=('check',)
@@ -83,21 +68,26 @@ class OnException(CondClass):
 		raise NoMatch
 
 class ReaderBase(DynInit):
-	_default_attrs=dict(data_buffer=[],old_data=[],textmode=True)
+	_default_attrs=dict(skipdata_handler=None,data_log=[],data_buffer=[],old_data=[],textmode=True)
+	debug=False
 	@staticmethod
 	def find_match(data,conditions):
+		matchlist=[]
 		if verbose: print "Finding match from %r using %r"%(data,conditions)
 		for idx,cond in enumerate(conditions):
 			try: match=cond.match(data)
 			except NoMatch,e: pass
 			else:
 				match.cond_idx=idx
-				return match
-		raise NoMatch
+				matchlist.append(match)
+		if not matchlist: raise NoMatch
+		matchlist.sort(key=lambda m: m.start)
+		return matchlist[0]
+	def data_skip(self,data):
+		if not quiet and ((not self.textmode) or data.strip()):
+			dbg("Skipped data: %r"%data)
 	def read_upto(self,conditions):
-		if type(conditions) in (str,unicode) or isinstance(conditions,CondClass):
-			conditions=[conditions]
-		condlist=conditions[:]
+		condlist=CondClass.listify(conditions)[:]
 		for idx,cond in filter(lambda x: type(x[1]) in (str,unicode), enumerate(condlist)):
 			condlist[idx]=OnString(cond)
 		while True:
@@ -105,26 +95,33 @@ class ReaderBase(DynInit):
 			if whole_data:
 				try:
 					match=self.find_match(whole_data,condlist)
-					if match.start and not quiet and ((not self.textmode) or whole_data[:match.start].strip()):
-						dbg("Skipped data: %r"%whole_data[:match.start])
+					if match.start:
+						self.data_skip(whole_data[:match.start])
 					self.data_buffer=[whole_data[match.end:]]
 					return match
 				except NoMatch: pass
 			try:
 				data=self.data_read()
+				self.data_log.append(data)
+				if self.debug: print "data_read: %r"%(data)
 				if data=='': raise EndOfData
 			except Exception,e:
 				others=OnNever()
-				print "Got exception while reading data: %r"%(e,)
-				match=self.find_match(e,map(lambda x: x if isinstance(x,OnException) else others,condlist))
-				if match: return match
-				else: raise
+				if self.debug and not isinstance(e,EndOfData): print "Got exception while reading data: %r"%(e,)
+				try: match=self.find_match(e,map(lambda x: x if isinstance(x,OnException) else others,condlist))
+				except NoMatch: raise e
+				return match
 			self.data_buffer.append(data)
 	def data_read(self): raise NotImplementedError,"data_read() needs to be implemented"
 
 class StreamReader(ReaderBase):
 	_init_args=('stream',)
 	def data_read(self): return self.stream.read()
+
+class FDReader(ReaderBase):
+	_init_args=('fd',)
+	def data_read(self):
+		return os.read(self.fd,8192)
 
 class StateMachine(DynInit):
 	_default_attrs=dict(states={'start':(["end"],),'end':(None,OnException(EndOfData))},state="start",next_states=None,prev_next_states=None,debug=False,log=[])
@@ -147,12 +144,73 @@ class StateMachine(DynInit):
 			for nextstate in self.next_states:
 				try: condlist=self.states[nextstate][1]
 				except IndexError: raise ValueError,"No conditions defined for %r"%(nextstate,)
-				if type(condlist) in (str,unicode) or isinstance(condlist,CondClass): condlist=[condlist]
-				for cond in condlist:
+				for cond in CondClass.listify(condlist):
 					nextconds.append((nextstate,cond))
 			self.match=self.reader.read_upto([x[1] for x in nextconds])
 			self.prev_state=self.state
 			self.state=nextconds[self.match.cond_idx][0]
-			if self.debug: print "Match[%d]: %r %r -> %r"%(self.match.cond_idx,self.state,self.match[0],self.match)
+			if self.debug: print "Matched[%d] %r %r in %r"%(self.match.cond_idx,self.state,self.match,self.match[0])
 			self.prev_next_states=self.next_states
 			self.next_states=self.execute_handlers(self.state)
+
+class FuncSM(object):
+	end_state=None
+	debug=False
+	@classmethod
+	def state(cls,conditions,*next_states):
+		"""Decorator for states
+		@conditions: list of conditions on which to enter this state
+		@next_states...: states which can follow this one"""
+		if not next_states: next_states=None
+		def mod_func(func):
+			func.state_conditions=CondClass.listify(conditions)
+			func.next_states=next_states
+			return func
+		return mod_func
+	def run(self):
+		self.execute_handlers(self.start)
+		self.run_to()
+		self.end()
+	def execute_handlers(self,state=None):
+		if state is not None: self.state=state
+		try:
+			if type(self.state)==type(self.execute_handlers) and self.state.im_self is self: next_states=self.state()
+			else: next_states=self.state(self)
+		except SMFinished:
+			if self.debug: print "Finished processing at: %s"%(self.state.__name__)
+			raise
+		if next_states is None: next_states=getattr(self.state,"next_states",None)
+		if next_states is not None: self.next_states=next_states
+	__sm_need_save_attrs="match prev_state state next_states __saved_state".split()
+	def __sm_save_state(self):
+		saved_state=object()
+		for k in self.__sm_need_save_attrs:
+			try: setattr(saved_state,k,getattr(self,k))
+			except AttributeError: pass
+		return saved_state
+	def __sm_restore_state(self,saved_state):
+		for k in self.__sm_need_save_attrs:
+			try: setattr(self,k,getattr(saved_state,k))
+			except AttributeError:
+				try: delattr(self,k)
+				except AttributeError: pass
+	def run_to(self,end=None):
+		if end is not None: self.end_state=end
+		while self.state:
+			if self.debug: print "state: %s -> [%s]"%(self.state.__name__,','.join(['%s'%(x if type(x)==str else x.__name__) for x in self.next_states]))
+			conditions=[]
+			for nextstate in self.next_states:
+				if type(nextstate)==str: nextstate=getattr(self,nextstate)
+				for cond in nextstate.state_conditions:
+					conditions.append((nextstate,cond))
+			self.__saved_state=self.__sm_save_state()
+			try: self.match=self.reader.read_upto(map(lambda x: x[1],conditions))
+			except EndOfData: break
+			self.prev_state=self.state
+			self.state=conditions[self.match.cond_idx][0]
+			if self.debug: print "Matched[%d] %s: %r in %r"%(self.match.cond_idx,self.state.__name__,self.match,self.match[0])
+			try: self.execute_handlers()
+			except SMFinished: break
+			except WrongMatch: self.__sm_restore_state(self.__saved_state)
+			if self.state==self.end_state: break
+	def end(self): pass

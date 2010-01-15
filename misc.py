@@ -15,11 +15,35 @@ except ImportError:
 	except ImportError:
 		print "crypt nor fcrypt installed! Some objects might not be usable."
 
-version=(0,4,20090906)
+version=(0,4,20091126)
 
 debug=False
 
 def objclsname(obj): return '%s.%s'%(obj.__class__.__module__,obj.__class__.__name__)
+
+class DynInit(object):
+	_default_attrs={}
+	@classmethod
+	def _add_defaults(cls,dst,skip=None):
+		if skip is None: skip={}
+		for k in cls.__dict__: skip[k]=None
+		for k,v in cls._default_attrs.iteritems():
+			if k in dst or k in skip: continue
+			dst[k]=v.copy() if type(v)==dict else v[:] if type(v)==list else v
+		for base in cls.__bases__:
+			try: base._add_defaults(dst,skip)
+			except AttributeError: pass
+		return dst
+	def __init__(self,*args,**kwargs):
+		for k,v in self._add_defaults(kwargs).iteritems(): setattr(self,k,v)
+		for idx,value in enumerate(args): setattr(self,self._init_args[idx],value)
+
+class DynAttr(object):
+	def __getattr__(self,key):
+		if not key.startswith("get_"):
+			setattr(self,key,getattr(self,"get_%s"%key)())
+			return getattr(self,key)
+		raise AttributeError,"%s.%s has no %r"%(self.__class__.__module__,self.__class__.__name__,key)
 
 class DynAttrClass(object):
 	_defaults={}
@@ -389,3 +413,43 @@ class HexEd(object):
 			addr+=step
 		return '\n'.join(out)
 
+class proputil:
+	@classmethod
+	def gen_getter(cls,name):
+		def mod_func(get_default_func):
+			def getter(self):
+				try: return self.__prop_cache[name]
+				except AttributeError: self.__prop_cache={}
+				except KeyError: pass
+				setattr(self,name,get_default_func(self))
+				return self.__prop_cache[name]
+			return getter
+		return mod_func
+	@classmethod
+	def gen_setter(cls,name):
+		def mod_func(clean_func):
+			def setter(self,val):
+				try: cache=self.__prop_cache
+				except AttributeError: cache=self.__prop_cache={}
+				cache[name]=clean_func(self,val)
+			return setter
+		return mod_func
+	@classmethod
+	def gen_deleter(cls,name):
+		def deleter(self):
+			try: del self.__prop_cache[name]
+			except KeyError: raise AttributeError,"Property %r not in cache"%(name)
+		return deleter
+	@classmethod
+	def gen_props(cls,tgt):
+		names=dict.fromkeys([x.split("_",1)[1] for x in dir(tgt) if x.startswith("default_") or x.startswith("clean_")]).keys()
+		for name in names:
+			try: getter=getattr(tgt,"default_%s"%(name))
+			except AttributeError:
+				def getter(self): raise AttributeError
+			try: cleaner=getattr(tgt,"clean_%s"%name)
+			except AttributeError: cleaner=lambda self,x: x
+			setattr(tgt,name,property(
+				cls.gen_getter(name)(getter),
+				cls.gen_setter(name)(cleaner),
+				cls.gen_deleter(name)))

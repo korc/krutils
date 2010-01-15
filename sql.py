@@ -3,7 +3,7 @@
 import re,os
 import traceback
 
-version=(0,2,20090430)
+version=(0,2,20091126)
 
 debug=False
 
@@ -348,13 +348,13 @@ class DBConn(object):
 	def scalar(self,tblname,cols,cond=None,*args):
 		args=list(args)
 		if tblname is None: tblname=""
-		else: tblname=" FROM %s"%(tblname)
+		else: tblname=" FROM `%s`"%(tblname)
 		if type(cols)==list: cols=','.join(cols)
 		return self.api.scalar("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 	def select(self,tblname,cols,cond=None,*args):
 		args=list(args)
 		if tblname is None: tblname=""
-		else: tblname=" FROM %s"%(tblname)
+		else: tblname=" FROM `%s`"%(tblname)
 		if type(cols)==list: cols=','.join(cols)
 		result=self.api("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 		if tblname is not None: result.table=tblname

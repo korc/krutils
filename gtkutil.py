@@ -4,7 +4,9 @@
 import sys,socket
 import misc
 import re
-import gtk.glade,gobject
+try: import gtk.glade
+except ImportError: print >>sys.stderr,"gtk.glade not available"
+import gobject
 import cPickle as pickle
 import traceback
 import BaseHTTPServer
