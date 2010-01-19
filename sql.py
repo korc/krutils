@@ -3,7 +3,7 @@
 import re,os
 import traceback
 
-version=(0,2,20091126)
+version=(0,2,20100119)
 
 debug=False
 
@@ -156,7 +156,8 @@ class SQLite_API(DB_API):
 			m=self.conn.api.unique_re.search(self.conn.api.scalar('SELECT sql FROM sqlite_master WHERE type=? AND name=?','table',self.name))
 			if m: return re.sub('\s','',m.group(1)).split(',')
 	def __init__(self,database):
-		import pysqlite2.dbapi2 as api
+		try: import pysqlite2.dbapi2 as api
+		except ImportError: import sqlite3.dbapi2 as api
 		if map(int,api.version.split('.'))<[2,3,3]:
 			raise Error,"SQLite old buggy API, upgrade to at least 2.3.3"
 		self.dbapi=api
