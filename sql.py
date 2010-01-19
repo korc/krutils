@@ -44,6 +44,12 @@ class SQLResult(object):
 		else: return self.count
 
 class SQLTable(object):
+	class ContainsCheck(object):
+		def __init__(self,table,cond):
+			self.table=table
+			self.cond=cond
+		def __contains__(self,vals):
+			return True if self.table.select("1",self.cond,*vals) else False
 	def __getattr__(self,key):
 		if key=='keys':
 			self.keys=self.get_keys()
@@ -62,6 +68,10 @@ class SQLTable(object):
 	def insert(self,inf): return self.conn.insert(self.name,inf)
 	def update(self,inf,cond,*args): return self.conn.update(self.name,inf,cond,*args)
 	def delete(self,cond,*args): return self.conn.delete(self.name,cond,*args)
+	def __contains__(self,cond):
+		return True if self.select("1",cond) else False
+	def mk_check(self,cond):
+		return self.ContainsCheck(self,cond)
 	def set(self,inf,keys=None,overwrite={}):
 		if keys is None: keys=self.keys
 		if keys:
