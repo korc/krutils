@@ -1,14 +1,14 @@
 # 2008-03-28
 # * added settimeout to socket in order to fix windows buffering problem
 
-import sys,socket
+import sys,socket,os
 import misc
 import re
 import gtk,gobject
 try: import gtk.glade
 except ImportError: print >>sys.stderr,"gtk.glade not available"
 import cPickle as pickle
-import traceback
+import traceback,inspect
 import BaseHTTPServer
 import StringIO
 
@@ -37,6 +37,22 @@ class GtkBuilderHelper(object):
 			setattr(self,key,val)
 			return val
 		raise AttributeError,"No object named '"+key+"' in %r"%(self.filename)
+
+class SimpleBuildGUI(object):
+	class Callbacks(object):
+		"""Callbacks class definition. Attribute main will hold main instance"""
+		def __init__(self,main):
+			self.main=main
+		def on_quit(self,*args):
+			gtk.main_quit() 
+	def __init__(self):
+		if not hasattr(self,"appname"):	# set appname to a/b/xxx.caller.py -> xxx.caller
+			frame=inspect.currentframe()
+			self.appname=".".join(os.path.split(frame.f_back.f_code.co_filename)[-1].split(".")[:-1])
+		self.cb=self.Callbacks(self)
+		self.ui=GtkBuilderHelper(os.path.join(os.path.split(sys.argv[0])[0],'%s.ui'%(self.appname)),self.cb)
+	def run(self):
+		gtk.main()
 
 class SimpleGUI(object):
 	__slots__=[]
