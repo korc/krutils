@@ -405,8 +405,13 @@ if __name__=="__main__":
 	import user
 	try: port=int(sys.argv[1])
 	except IndexError:
-		print >>sys.stderr,"Usage: %s <listen_port>"%(sys.argv[0])
+		print >>sys.stderr,"Usage: %s <listen_port> [<remoteip>:<port>]"%(sys.argv[0])
 		sys.exit(1)
-	proxy=TcpServer(tproxy=True,hclass=InteractiveForwarder,port=int(sys.argv[1]))
+	try: remote=sys.argv[2]
+	except IndexError:
+		proxy=TcpServer(tproxy=True,hclass=InteractiveForwarder,port=int(sys.argv[1]))
+	else:
+		remote=remote.split(":")
+		proxy=TcpServer(hclass=InteractiveForwarder,port=int(sys.argv[1]),hargs=dict(remote=(remote[0],int(remote[1]))))
 	print "proxy: %r"%(proxy,)
 	proxy.run()
