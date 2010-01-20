@@ -386,20 +386,26 @@ class TcpServer(object):
 		print "shutting down %r"%(claddr,)
 		nice_shutdown(clsock)
 		clsock.close()
-	def run(self):
-		print "handler class:",self.hclass,"args:",self.hargs
+	def create_sock(self):
 		self.sock=socket.socket()
 		self.sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
 		if self.tproxy: self.sock.setsockopt(socket.SOL_IP,self.IP_TRANSPARENT,1)
 		print "Binding to %s"%(self.port)
 		self.sock.bind((self.bind_ip,self.port))
+	def run(self):
+		print "handler class:",self.hclass,"args:",self.hargs
+		if not hasattr(self, "sock"): self.create_sock()
 		self.sock.listen(1)
-		while True:
+		self.sock.settimeout(1)
+		self.keep_listening=True
+		while self.keep_listening:
 			try: clsock,claddr=self.sock.accept()
-			except KeyboardInterrupt:
-				break
-			thread.start_new_thread(self.run_handler,(clsock,claddr))
+			except socket.timeout: pass
+			except KeyboardInterrupt: break
+			else: thread.start_new_thread(self.run_handler,(clsock,claddr))
 		nice_shutdown(self.sock)
+	def stop(self):
+		self.keep_listening=False
 
 if __name__=="__main__":
 	import user
