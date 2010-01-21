@@ -2,7 +2,6 @@
 # * added settimeout to socket in order to fix windows buffering problem
 
 import sys,socket,os
-import misc
 import re
 import gtk,gobject
 try: import gtk.glade
@@ -11,6 +10,7 @@ import cPickle as pickle
 import traceback,inspect
 import BaseHTTPServer
 import StringIO
+from misc import flag_str,proputil,dbg
 
 class GladeUI(object):
 	def __init__(self,file,cbobj=None):
@@ -54,6 +54,16 @@ class SimpleBuildGUI(object):
 	def run(self):
 		gtk.main()
 
+
+class Connectable(object):
+	def default_connect_table(self): return {}
+	def run_handlers(self,signal,*args,**kwargs):
+		for func,add_args,add_kwargs in self.connect_table.get(signal,[]):
+			func(self,*(args+add_args),**dict(kwargs,**add_kwargs))
+	def connect(self,signal,func,*args,**kwargs):
+		self.connect_table.setdefault(signal,[]).append((func,args,kwargs))
+proputil.gen_props(Connectable)
+
 class SimpleGUI(object):
 	__slots__=[]
 	icon=None
@@ -96,7 +106,7 @@ def debug_win(obj,list_internals=True):
 	infowin.set_default_size(560,300)
 	frame=gtk.Frame(str(obj))
 	msg=[]
-	misc.dbg(obj,skip_us=not list_internals,writefunc=msg.append)
+	dbg(obj,skip_us=not list_internals,writefunc=msg.append)
 	frame.add(in_sw(gtk.Label(''.join(msg)),False))
 	infowin.add(frame)
 	infowin.show_all()
@@ -158,7 +168,7 @@ class GtkSrv(object):
 		self.clients={}
 		gobject.timeout_add(self.cleanup_interval,self.cleanup_clients)
 	def on_io_in(self,sock,cond,claddr):
-		#print 'on_io_in:',sock,misc.flag_str(cond,self.io_evs),claddr
+		#print 'on_io_in:',sock,flag_str(cond,self.io_evs),claddr
 		data=sock.recv(4096)
 		if data=='':			# it means we're disconnected
 			#print 'closing connection to',claddr
@@ -194,13 +204,13 @@ class GtkSrv(object):
 		cldata['sock'].close()
 		del self.clients[claddr]
 	def on_io_act(self,sock,cond,claddr):
-		print 'on_io_act:',sock,misc.flag_str(cond,self.io_evs),claddr
+		print 'on_io_act:',sock,flag_str(cond,self.io_evs),claddr
 		return True
 	def on_io_hup(self,sock,cond,claddr):
 		self.remove_client(claddr)
 		return False
 	def on_io_out(self,sock,cond,claddr):
-		#print 'on_io_out',sock,misc.flag_str(cond,self.io_evs),claddr
+		#print 'on_io_out',sock,flag_str(cond,self.io_evs),claddr
 		if 'timeout' in self.clients[claddr]: del self.clients[claddr]['timeout']
 		if self.clients[claddr]['handler'].io_out(sock):
 			return True

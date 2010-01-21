@@ -3,17 +3,11 @@
 import sys,thread,os
 import socket,select,errno,code,re,pprint,fcntl,struct
 
-def flag_str(nr,flagdef={}):
-	flags=[]
-	for (val,name) in flagdef.items():
-		if nr&val:
-			flags.append(name)
-			nr^=val
-	out="|".join(flags)
-	if nr!=0: out+="+%d"%(nr)
-	return out
+from misc import proputil,flag_str
 
 version=(0,2,20090924)
+
+debug=False
 
 def nice_shutdown(sock):
 	try: sock.shutdown(2)
@@ -155,10 +149,14 @@ class SimpleForwarder(object):
 		for k,v in args.iteritems(): setattr(self,k,v)
 	def process_data(self,data,fd): return data
 	def start_loop(self): pass
-	def stop_loop(self): pass
+	def connection_closed(self,fd):
+		self.keep_running=False
+	def stop_loop(self):
+		for sock in map(lambda x: x['sock'],self.socks.itervalues()):
+			self.unregister_sock(sock)
 	def recv_data(self,fd):
 		data=self.socks[fd]['sock'].recv(self.socks[fd]['rcvsize'])
-		if data=='': self.keep_running=False
+		if data=='': self.connection_closed(fd)
 		return data
 	def handle_event(self,fd,ev):
 		print "%r fd %d POLL%s"%(self.socks[fd]['addr'],fd,flag_str(ev,self.poll_flags))
@@ -170,10 +168,10 @@ class SimpleForwarder(object):
 			print "hangup"
 			self.keep_running=False
 		elif ev&select.POLLIN:
-			print "read data:",
+			if debug: print "read data:",
 			sys.stdout.flush()
 			data=self.recv_data(fd)
-			print repr(data)
+			if debug: print repr(data)
 			self.rcvlog.append((fd,data))
 			data=self.process_data(data,fd)
 			if data!='': self.send_data(data,fd)
@@ -201,7 +199,6 @@ class SimpleForwarder(object):
 			'rcvsize':sock.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF),
 			'addr':sock.getpeername(),
 		}
-		#print "register_sock:",sockinf
 		self.socks[sock.fileno()]=sockinf
 		if pollflags: self.poll.register(sock,pollflags)
 	def unregister_sock(self,sock):
@@ -210,12 +207,11 @@ class SimpleForwarder(object):
 		nice_shutdown(sock)
 
 class TcpForwarder(SimpleForwarder):
+	def default_remote(self):
+		if not getattr(self.server,"tproxy",False):
+			print >>sys.stderr,"Server does not have tproxy set, are you sure you don't want to add remote attribute to handler?"
+		return self.clsock.getsockname()
 	def start_loop(self):
-		try: self.remote
-		except AttributeError:
-			if self.server.tproxy:
-				self.remote=self.clsock.getsockname()
-			else: raise
 		print "Starting proxy %s<->%s"%(self.claddr,self.remote)
 		self.srvsock=socket.socket()
 		try: self.srvsock.connect(self.remote)
@@ -223,9 +219,9 @@ class TcpForwarder(SimpleForwarder):
 			print >>sys.stderr,"Error connecting to %s:"%(self.remote,),e
 			raise
 		self.register_sock(self.srvsock)
-	def stop_loop(self): self.unregister_sock(self.srvsock)
 	def __repr__(self):
 		return "<%s.%s@%x (%s) %s>"%(self.__class__.__module__,self.__class__.__name__,hash(self)&((sys.maxint<<1)+1),','.join(['%s'%x['addr'] for x in self.socks.itervalues()]),self.status)
+proputil.gen_props(TcpForwarder)
 
 class HTTPForwarder(SimpleForwarder):
 	remote_re=re.compile(r'^(?P<method>GET|POST) (?P<url>(?:http://(?P<host>.*?)(?::(?P<port>\d+))?)?(?P<path>/.*?)) (?P<http_ver>HTTP/1\.[01])\r\n(?P<headers>(?:[\w-]+: .*?\r\n)*)\r\n',re.S)
@@ -372,8 +368,9 @@ class TcpServer(object):
 		for k,v in args.iteritems(): setattr(self,k,v)
 	def run_handler(self,clsock,claddr):
 		print "connection from %r to %r"%(claddr,clsock.getsockname())
-		handler=self.hclass(clsock=clsock,claddr=claddr,**self.hargs)
-		handler.server=self
+		hargs=dict(self.hargs)
+		hargs.setdefault("server",self)
+		handler=self.hclass(clsock=clsock,claddr=claddr,**hargs)
 		self.hlock.acquire()
 		self.handlers.append(handler)
 		self.hlock.release()
