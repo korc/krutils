@@ -453,3 +453,18 @@ class proputil:
 				cls.gen_getter(name)(getter),
 				cls.gen_setter(name)(cleaner),
 				cls.gen_deleter(name)))
+
+class Connectable(object):
+	def default_connect_table(self): return {}
+	def run_handlers(self,signal,*args,**kwargs):
+		for func,add_args,add_kwargs in self.connect_table.get(signal,[]):
+			func(self,*(args+add_args),**dict(kwargs,**add_kwargs))
+	def connect(self,signal,func,*args,**kwargs):
+		self.connect_table.setdefault(signal,[]).append((func,args,kwargs))
+	def disconnect(self,signal,func):
+		idx=0
+		signal_table=self.connect_table[signal]
+		while idx<len(signal_table):
+			if signal_table[idx][0]==func: signal_table.pop(idx)
+			else: idx+=1
+proputil.gen_props(Connectable)

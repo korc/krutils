@@ -10,7 +10,7 @@ import cPickle as pickle
 import traceback,inspect
 import BaseHTTPServer
 import StringIO
-from misc import flag_str,proputil,dbg
+from misc import flag_str,proputil,dbg,Connectable
 
 class GladeUI(object):
 	def __init__(self,file,cbobj=None):
@@ -54,15 +54,6 @@ class SimpleBuildGUI(object):
 	def run(self):
 		gtk.main()
 
-
-class Connectable(object):
-	def default_connect_table(self): return {}
-	def run_handlers(self,signal,*args,**kwargs):
-		for func,add_args,add_kwargs in self.connect_table.get(signal,[]):
-			func(self,*(args+add_args),**dict(kwargs,**add_kwargs))
-	def connect(self,signal,func,*args,**kwargs):
-		self.connect_table.setdefault(signal,[]).append((func,args,kwargs))
-proputil.gen_props(Connectable)
 
 class SimpleGUI(object):
 	__slots__=[]
