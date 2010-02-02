@@ -442,7 +442,7 @@ class proputil:
 		return deleter
 	@classmethod
 	def gen_props(cls,tgt):
-		names=dict.fromkeys([x.split("_",1)[1] for x in dir(tgt) if x.startswith("default_") or x.startswith("clean_")]).keys()
+		names=filter(lambda name: name not in tgt.__dict__,dict.fromkeys([x.split("_",1)[1] for x in dir(tgt) if x.startswith("default_") or x.startswith("clean_")]).keys())
 		for name in names:
 			try: getter=getattr(tgt,"default_%s"%(name))
 			except AttributeError:

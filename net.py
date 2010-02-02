@@ -428,11 +428,12 @@ class SockStreamReader(StreamReader):
 class TcpStateMachine(FuncSM,DynInit):
 	_init_args=('host',)
 	sock_debug=False
+	reader_debug=False
 	timeout=10
 	request=""
 	def default_ssl_ports(self): return {}
 	def default_ssl(self): return True if self.port in self.ssl_ports else False
-	def default_reader(self): return SockStreamReader(self.sock)
+	def default_reader(self): return SockStreamReader(self.sock,debug=self.reader_debug)
 	def _set_addr(self,value):
 		if type(value)==tuple: self.ip,self.port=value
 		try: idx=value.index(":")

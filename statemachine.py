@@ -2,7 +2,7 @@
 
 import re,sys
 
-from misc import DynInit
+from misc import DynInit, proputil
 
 class SMException(Exception): pass
 class EndOfData(SMException): pass
@@ -70,8 +70,12 @@ class OnException(CondClass):
 	def __repr__(self): return "<OnExc:%s>"%(self.exc_type.__name__,)
 
 class ReaderBase(DynInit):
-	_default_attrs=dict(skipdata_handler=None,data_log=[],data_buffer=[],old_data=[],textmode=True)
+	skipdata_handler=None
+	textmode=True
 	debug=False
+	def default_data_log(self): return []
+	def default_data_buffer(self): return []
+	def default_old_data(self): return []
 	@staticmethod
 	def find_match(data,conditions):
 		matchlist=[]
@@ -88,6 +92,8 @@ class ReaderBase(DynInit):
 	def data_skip(self,data):
 		if not quiet and ((not self.textmode) or data.strip()):
 			dbg("Skipped data: %r"%data)
+	def unread(self,data):
+		self.data_buffer.insert(0,data)
 	def read_upto(self,conditions):
 		condlist=CondClass.listify(conditions)[:]
 		for idx,cond in filter(lambda x: type(x[1]) in (str,unicode), enumerate(condlist)):
@@ -115,6 +121,7 @@ class ReaderBase(DynInit):
 				return match
 			self.data_buffer.append(data)
 	def data_read(self): raise NotImplementedError,"data_read() needs to be implemented"
+proputil.gen_props(ReaderBase)
 
 class StreamReader(ReaderBase):
 	_init_args=('stream',)
