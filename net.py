@@ -1,9 +1,10 @@
 #!/usr/bin/python
 
 import sys,thread,os
-import socket,select,errno,code,re,pprint,fcntl,struct
+import socket,select,errno,code,re,fcntl,struct
 
-from misc import proputil,flag_str
+from misc import proputil,flag_str, DynInit
+from statemachine import FuncSM, StreamReader
 
 version=(0,2,20090924)
 
@@ -404,8 +405,39 @@ class TcpServer(object):
 	def stop(self):
 		self.keep_listening=False
 
+class SockStreamReader(StreamReader):
+	def data_read(self):
+		try: return self.stream.read()
+		except EndOfDataException: return ""
+
+class TcpStateMachine(FuncSM,DynInit):
+	_init_args=('host',)
+	sock_debug=False
+	timeout=10
+	request=""
+	def default_ssl_ports(self): return {}
+	def default_ssl(self): return True if self.port in self.ssl_ports else False
+	def default_reader(self): return SockStreamReader(self.sock)
+	def _set_addr(self,value):
+		if type(value)==tuple: self.ip,self.port=value
+		try: idx=value.index(":")
+		except (ValueError,AttributeError): self.ip=value
+		else: self.addr=(value[:idx],int(value[idx+1:]))
+	def _get_addr(self): return (self.ip,self.port)
+	addr=property(_get_addr,_set_addr)
+	host=property(lambda self: self.ip,_set_addr)
+	def end(self):
+		self.sock.close()
+	@FuncSM.state(None)
+	def start(self):
+		if self.ssl: self.sock=SSLSock(self.addr,verbose=self.sock_debug)
+		else: self.sock=TcpSock(self.addr,verbose=self.sock_debug)
+		if self.timeout is not None: self.sock.settimeout(self.timeout)
+		if self.request: self.sock.send(self.request)
+proputil.gen_props(TcpStateMachine)
+
 if __name__=="__main__":
-	import user
+	import user #@UnusedImport
 	try: port=int(sys.argv[1])
 	except IndexError:
 		print >>sys.stderr,"Usage: %s <listen_port> [<remoteip>:<port>]"%(sys.argv[0])

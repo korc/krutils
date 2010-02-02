@@ -20,6 +20,7 @@ quiet=False
 class Match(DynInit):
 	_default_attrs=dict(cond=None,start=None,end=None,data=None)
 	def __getitem__(self,key):
+		if isinstance(self.data,Exception): return self.data[key]
 		if key==0: return self.data[self.start:self.end]
 		return self.groups[key]
 	def __str__(self): return self[0]
@@ -66,6 +67,7 @@ class OnException(CondClass):
 	def match(self,data):
 		if isinstance(data,self.exc_type): return Match(data=data)
 		raise NoMatch
+	def __repr__(self): return "<OnExc:%s>"%(self.exc_type.__name__,)
 
 class ReaderBase(DynInit):
 	_default_attrs=dict(skipdata_handler=None,data_log=[],data_buffer=[],old_data=[],textmode=True)
@@ -104,7 +106,7 @@ class ReaderBase(DynInit):
 				data=self.data_read()
 				self.data_log.append(data)
 				if self.debug: print "data_read: %r"%(data)
-				if data=='': raise EndOfData
+				if data=='': raise EndOfData,"no more data"
 			except Exception,e:
 				others=OnNever()
 				if self.debug and not isinstance(e,EndOfData): print "Got exception while reading data: %r"%(e,)
