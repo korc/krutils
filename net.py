@@ -6,6 +6,11 @@ import socket,select,errno,code,re,fcntl,struct
 from misc import proputil,flag_str, DynInit
 from statemachine import FuncSM, StreamReader
 
+try:
+	from OpenSSL.SSL import Context,Connection,TLSv1_METHOD,WantReadError,ZeroReturnError
+except ImportError:
+	print >>sys.stderr,"OpenSSL.SSL not avail, SSLSock will not work"
+
 version=(0,2,20090924)
 
 debug=False
@@ -54,6 +59,8 @@ class Interface(object):
 class NetSock(object):
 	recv_size=1500
 	verbose=True
+	def _set_timeout(self,val): self.sock.settimeout(val)
+	timeout=property(lambda self: self.sock.gettimeout(),_set_timeout)
 	def __getattr__(self,key):
 		return getattr(self.sock,key)
 	def interact(self,input=sys.stdin,output=sys.stdout):
@@ -66,6 +73,7 @@ class NetSock(object):
 			else:
 				if input in in_set:
 					line=input.readline()
+					if line=="": return
 					self.sock.sendall(line)
 				if self.sock in in_set:
 					try: buf=self.sock.recv(self.recv_size)
@@ -122,13 +130,20 @@ class SSLSock(TcpSock):
 	def __init__(self,*args,**kwargs):
 		TcpSock.__init__(self,*args,**kwargs)
 		self.raw_sock=self.sock
-		from OpenSSL.SSL import Context,Connection,TLSv1_METHOD
 		self.sock=Connection(Context(TLSv1_METHOD),self.raw_sock)
 		self.sock.set_connect_state()
 		self.sock.do_handshake()
 	def sock_recv(self,size,nodata_delay):
 		if size is None: size=self.recv_size
-		return self.sock.read(size)
+		try: return self.sock.read(size)
+		except WantReadError:
+			tmout=self.timeout
+			if tmout is None: raise
+			if not select.select([self.sock],[],[],tmout)[0]:
+				raise socket.timeout,"No data in %s seconds"%(tmout,)
+			try: return self.sock.read(size)
+			except ZeroReturnError: return ""
+		except ZeroReturnError: return ""
 	def close(self):
 		self.sock.shutdown()
 		self.sock=self.raw_sock
