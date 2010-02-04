@@ -431,6 +431,10 @@ class TcpStateMachine(FuncSM,DynInit):
 	reader_debug=False
 	timeout=10
 	request=""
+	log_file=sys.stdout
+	log_fmt="%(msg)s"
+	log_level="info"
+	log_levels=dict([(name,idx) for idx,name in enumerate("error warn info debug".split())])
 	def default_ssl_ports(self): return {}
 	def default_ssl(self): return True if self.port in self.ssl_ports else False
 	def default_reader(self): return SockStreamReader(self.sock,debug=self.reader_debug)
@@ -443,14 +447,28 @@ class TcpStateMachine(FuncSM,DynInit):
 	def _get_addr(self): return (self.ip,self.port)
 	addr=property(_get_addr,_set_addr)
 	host=property(lambda self: self.ip,_set_addr)
+	def log_enabled(self,level):
+		return self.log_file and self.log_levels[level]<=self.log_levels[self.log_level]
+	def log(self,level,msg,nl=True):
+		if nl: print >>self.log_file,self.log_fmt%locals()
+		else:
+			print >>self.log_file,self.log_fmt%locals(),
+			self.log_file.flush()
 	def end(self):
 		self.sock.close()
+	def _repr(self): return "%s:%s"%(self.ip,self.port)
+	def __repr__(self): return "<%s %s>"%(self.__class__.__name__,self._repr())
 	@FuncSM.state(None)
 	def start(self):
+		if self.log_enabled("info"):
+			self.log("info","%s Connecting.."%(repr(self)),nl=False)
 		if self.ssl: self.sock=SSLSock(self.addr,verbose=self.sock_debug)
 		else: self.sock=TcpSock(self.addr,verbose=self.sock_debug)
 		if self.timeout is not None: self.sock.settimeout(self.timeout)
-		if self.request: self.sock.send(self.request)
+		if self.request:
+			if self.log_enabled("info"): self.log("info","sending request")
+			self.sock.send(self.request)
+		else: self.log("info","connected")
 proputil.gen_props(TcpStateMachine)
 
 if __name__=="__main__":
