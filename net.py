@@ -436,9 +436,10 @@ class TcpStateMachine(FuncSM,DynInit):
 	def default_reader(self): return SockStreamReader(self.sock,debug=self.reader_debug)
 	def _set_addr(self,value):
 		if type(value)==tuple: self.ip,self.port=value
-		try: idx=value.index(":")
-		except (ValueError,AttributeError): self.ip=value
-		else: self.addr=(value[:idx],int(value[idx+1:]))
+		else:
+			try: idx=value.index(":")
+			except (ValueError,AttributeError): self.ip=value
+			else: self.addr=(value[:idx],int(value[idx+1:]))
 	def _get_addr(self): return (self.ip,self.port)
 	addr=property(_get_addr,_set_addr)
 	host=property(lambda self: self.ip,_set_addr)
