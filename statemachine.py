@@ -62,6 +62,15 @@ class OnString(CondClass):
 		except ValueError: raise NoMatch
 		return Match(cond=self,start=idx,end=idx+len(self.check),data=data)
 
+class OnSize(CondClass):
+	_init_args=('size',)
+	def __init__(self,*args,**kwargs):
+		CondClass.__init__(self,*args,**kwargs)
+		self.size=int(self.size)
+	def match(self,data):
+		if len(data)<self.size: raise NoMatch
+		else: return Match(cond=self,start=0,end=self.size,data=data)
+
 class OnException(CondClass):
 	_init_args=("exc_type",)
 	def match(self,data):
