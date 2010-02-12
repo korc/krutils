@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re,sys
+import re,sys,os
 
 from misc import DynInit, proputil
 
@@ -124,7 +124,8 @@ class ReaderBase(DynInit):
 				if data=='': raise EndOfData,"no more data"
 			except Exception,e:
 				others=OnNever()
-				if self.debug and not isinstance(e,EndOfData): print "Got exception while reading data: %r"%(e,)
+				if self.debug and not isinstance(e,EndOfData):
+					print "Got exception %r while having %r, going to %r"%(e,data,condlist)
 				try: match=self.find_match(e,map(lambda x: x if isinstance(x,OnException) else others,condlist))
 				except NoMatch: raise e
 				return match
