@@ -232,4 +232,7 @@ class FuncSM(object):
 			except SMFinished: break
 			except WrongMatch: self.__sm_restore_state(self.__saved_state)
 			if self.state==self.end_state: break
+		if self.debug:
+			d=getattr(self.reader,"data_buffer",None)
+			if d: print "Leftovers in reader.data_buffer: %r"%(self.reader.data_buffer)
 	def end(self): pass
