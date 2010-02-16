@@ -11,7 +11,7 @@ try:
 except ImportError:
 	print >>sys.stderr,"OpenSSL.SSL not avail, SSLSock will not work"
 
-version=(0,2,20090924)
+version=(0,2,20100216)
 
 debug=False
 
@@ -72,9 +72,14 @@ class NetSock(object):
 				return
 			else:
 				if input in in_set:
-					line=input.readline()
-					if line=="": return
-					self.sock.sendall(line)
+					data=[]
+					while input in select.select([input],[],[],0)[0]:
+						b=os.read(input.fileno(),1)
+						if b=="": break
+						data.append(b)
+					data="".join(data)
+					if data=="": return
+					self.sock.sendall(data)
 				if self.sock in in_set:
 					try: buf=self.sock.recv(self.recv_size)
 					except socket.error,e:
