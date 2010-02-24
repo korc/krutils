@@ -212,6 +212,33 @@ class IPV4(object):
 			ret=(ret-(ret&(0xff<<(8*idx))))|int(val)<<(8*idx)
 		return IPV4(ret)
 
+class CombinedList(object):
+	valtype=tuple
+	exclude=None
+	def __init__(self,*lists,**attrs):
+		self.lists=lists
+		self.extra=[]
+		for k,v in attrs.iteritems(): setattr(self, k, v)
+	def __iter__(self):
+		iters=[]
+		vals=[]
+		while True:
+			while len(iters)<len(self.lists):
+				iters.append(iter(self.lists[len(iters)]))
+			try:
+				while len(vals)<len(iters):
+					vals.append(iters[len(vals)].next())
+			except StopIteration:
+				del iters[len(vals):]
+				if not iters: break
+				del vals[len(vals)-1:]
+				continue
+			val=self.valtype(vals)
+			if self.exclude is None or val not in self.exclude:
+				yield val
+			del vals[len(vals)-1:]
+		for val in self.extra: yield val
+	def append(self,val): self.extra.append(val)
 
 class LoggableClass(object):
 	verbosity=2
