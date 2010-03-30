@@ -11,8 +11,6 @@ try:
 except ImportError:
 	print >>sys.stderr,"OpenSSL.SSL not avail, SSLSock will not work"
 
-version=(0,2,20100216)
-
 debug=False
 
 def nice_shutdown(sock):
@@ -162,7 +160,7 @@ class TcpSrvHandler(object):
 	def run(self): raise NotImplementedError,"Need to implement run for %s.%s"%(self.__class__.__module__,self.__class__.__name__)
 
 class SimpleForwarder(object):
-	poll_flags=dict([(getattr(select,'POLL%s'%x),x) for x in 'ERR HUP IN MSG NVAL OUT PRI'.split()])
+	poll_flags=dict([(getattr(select,'POLL%s'%x,0),x) for x in 'ERR HUP IN MSG NVAL OUT PRI'.split()])
 	def __init__(self,clsock,claddr,**args):
 		(self.clsock,self.claddr)=clsock,claddr
 		self.status="initialized"

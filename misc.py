@@ -2,7 +2,6 @@ import sys,os
 import thread,re,struct
 import socket,select,random
 
-import bz2,gzip
 try:
 	import Crypto.Hash.MD4
 	import Crypto.Hash.MD5
@@ -14,8 +13,6 @@ except ImportError:
 	try: import fcrypt as crypt
 	except ImportError:
 		print "crypt nor fcrypt installed! Some objects might not be usable."
-
-version=(0,4,20091126)
 
 debug=False
 
@@ -252,6 +249,10 @@ class LoggableClass(object):
 			print >>stream,"%s: %s"%(self.verbosity_levels.get(level,'UKN'),msg)
 		if hasattr(stream,'flush'):
 			stream.flush()
+
+try: import bz2,gzip
+except ImportError:
+	print >>sys.stderr,"bz2, gzip modules not available, CompressedFile class unusable"
 
 class CompressedFile(LoggableClass):
 	def open_gzip(self,filename):
