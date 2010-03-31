@@ -470,7 +470,7 @@ class TcpStateMachine(FuncSM,DynInit):
 		if self.timeout is not None: self.sock.settimeout(self.timeout)
 		if self.request:
 			if self.log_enabled("info"): self.log("info","sending request")
-			self.sock.send(self.request)
+			self.sock.sendall(self.request)
 		else: self.log("info","connected")
 proputil.gen_props(TcpStateMachine)
 
