@@ -7,7 +7,7 @@ from misc import proputil,flag_str, DynInit
 from statemachine import FuncSM, StreamReader
 
 try:
-	from OpenSSL.SSL import Context,Connection,TLSv1_METHOD,WantReadError,ZeroReturnError
+	from OpenSSL.SSL import Context,Connection,TLSv1_METHOD,WantReadError,ZeroReturnError,SysCallError
 except ImportError:
 	print >>sys.stderr,"OpenSSL.SSL not avail, SSLSock will not work"
 
@@ -60,7 +60,11 @@ class NetSock(object):
 	def _set_timeout(self,val): self.sock.settimeout(val)
 	timeout=property(lambda self: self.sock.gettimeout(),_set_timeout)
 	def __getattr__(self,key):
-		return getattr(self.sock,key)
+		if key.startswith("_"): raise AttributeError,key
+		else: return getattr(self.sock,key)
+	def connect(self,addr=None):
+		if addr is not None: self.addr=addr
+		return self.sock.connect(self.addr)
 	def interact(self,input=sys.stdin,output=sys.stdout):
 		print "Type now!"
 		while 1:
@@ -79,22 +83,37 @@ class NetSock(object):
 					if data=="": return
 					self.sock.sendall(data)
 				if self.sock in in_set:
-					try: buf=self.sock.recv(self.recv_size)
+					try: buf=self.recv()
 					except socket.error,e:
 						print 'Socket error:',e
+					except EndOfDataException:
+						print 'Connection closed.'
+						return
 					if buf=='':
 						print 'Connection closed.'
 						return
 					output.write(buf)
 					output.flush()
 
-class TcpSock(NetSock):
+class IPPortSock(NetSock):
+	def _get_addr(self): return (self.host,self.port)
+	def _set_addr(self,val):
+		if type(val)==tuple: self.host,self.port=val
+		elif type(val) in (str,unicode):
+			if val.count(":")==1:
+				idx=val.index(":")
+				self.host,self.port=val[:idx],int(val[idx+1:])
+			else: self.host=val
+	addr=property(_get_addr,_set_addr)
+
+class TcpSock(IPPortSock):
+	def default_sock(self): return socket.socket()
+	def default_recv_size(self): return self.sock.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)
 	def __init__(self,addr=None,**args):
-		if type(addr)==tuple:
-			self.sock=socket.socket()
-			self.sock.connect(addr)
+		if addr is not None:
+			self.addr=addr
+			self.connect()
 		for k,v in args.iteritems(): setattr(self,k,v)
-		self.recv_size=self.sock.getsockopt(socket.SOL_SOCKET,socket.SO_RCVBUF)
 	def sock_send(self,buf): return self.sock.send(buf)
 	def send(self,buf,print_as=None):
 		if self.verbose:
@@ -129,6 +148,7 @@ class TcpSock(NetSock):
 		try: self.sock.shutdown(2)
 		except socket.error: pass
 		self.sock.close()
+proputil.gen_props(TcpSock)
 
 class SSLSock(TcpSock):
 	def __init__(self,*args,**kwargs):
@@ -148,6 +168,9 @@ class SSLSock(TcpSock):
 			try: return self.sock.read(size)
 			except ZeroReturnError: return ""
 		except ZeroReturnError: return ""
+		except SysCallError,e:
+			if e[0]==-1: return ""
+			raise
 	def close(self):
 		self.sock.shutdown()
 		self.sock=self.raw_sock
