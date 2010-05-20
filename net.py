@@ -86,6 +86,7 @@ class NetSock(object):
 						print 'Connection closed.'
 						return
 					output.write(buf)
+					output.flush()
 
 class TcpSock(NetSock):
 	def __init__(self,addr=None,**args):
