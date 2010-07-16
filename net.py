@@ -98,12 +98,12 @@ class NetSock(object):
 class IPPortSock(NetSock):
 	def _get_addr(self): return (self.host,self.port)
 	def _set_addr(self,val):
-		if type(val)==tuple: self.host,self.port=val
-		elif type(val) in (str,unicode):
+		if type(val) in (str,unicode):
 			if val.count(":")==1:
 				idx=val.index(":")
 				self.host,self.port=val[:idx],int(val[idx+1:])
 			else: self.host=val
+		else: self.host,self.port=val
 	addr=property(_get_addr,_set_addr)
 
 class TcpSock(IPPortSock):
@@ -125,8 +125,9 @@ class TcpSock(IPPortSock):
 		return cnt
 	def read(self,*args,**kwargs): return self.recv(*args,**kwargs)
 	def write(self,*args,**kwargs): return self.send(*args,**kwargs)
-	def has_data(self):
-		return self.sock in select.select([self.sock],[],[],0)[0]
+	def poll(self,timeout=0):
+		return self.sock in select.select([self.sock],[],[],timeout)[0]
+	def has_data(self): return self.poll(0)
 	def sock_recv(self,size,nodata_delay):
 		if size is None: size=self.recv_size
 		try: buf=[self.sock.recv(size)]
