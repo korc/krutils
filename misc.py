@@ -1,10 +1,10 @@
 import sys,os
-import thread,re,struct
+import re,struct
 import socket,select,random
 
 try:
 	import Crypto.Hash.MD4
-	import Crypto.Hash.MD5
+	#import Crypto.Hash.MD5
 except ImportError:
 	print "Crypto lib not installed! Some objects might not be usable."
 try:
@@ -74,7 +74,7 @@ def charrange(start,end):
 	return ''.join([chr(x) for x in range(ord(start),ord(end)+1)])
 
 def randomchars(size,alphabet=charrange('a','z')):
-	return ''.join([alphabet[random.randint(0,len(alphabet)-1)] for x in range(size)])
+	return ''.join([alphabet[random.randint(0,len(alphabet)-1)] for x in range(size)]) #@UnusedVariable
 	
 class CharGen(object):
 	__slots__=['alphabet','index','maxlen','maxindex','result_converter']
@@ -154,13 +154,13 @@ class SpeedTest(object):
 	def __init__(self):
 		self.count=10000
 	def test1_code(self,offset):
-		n=self._data[offset:offset+100]
+		self._data[offset:offset+100]
 	def test1(self,data):
 		for x in xrange(self.count):
 			self._data=data
 			self.test1_code(x)
 	def test2_code(self,data,offset):
-		n=data[offset:offset+100]
+		data[offset:offset+100]
 	def test2(self,data):
 		for x in xrange(self.count):
 			self.test2_code(data,x)
@@ -171,6 +171,7 @@ class Test:
 	def __getattr__(self,key):
 		print '%s.__getattr__: %r'%(clsname(self),key)
 		raise AttributeError,"%s has no %r attribute"%(clsname(self),key)
+	@staticmethod
 	def test_call(*args):
 		print 'XXX: %r'%(args,)
 	@classmethod
@@ -250,9 +251,9 @@ class LoggableClass(object):
 		if hasattr(stream,'flush'):
 			stream.flush()
 
-try: import bz2,gzip
+try: import bz2
 except ImportError:
-	print >>sys.stderr,"bz2, gzip modules not available, CompressedFile class unusable"
+	print >>sys.stderr,"bz2 module not available, CompressedFile class unusable"
 
 class CompressedFile(LoggableClass):
 	def open_gzip(self,filename):
@@ -330,7 +331,6 @@ class Flags(object):
 			if nr&val:
 				flags.append(name)
 				nr^=val
-		out="|".join(flags)
 		if nr!=0: flags.append("%d"%(nr))
 		return "|".join(flags)
 

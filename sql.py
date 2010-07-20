@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import re,os
+import re
 import traceback
 
 version=(0,2,20100119)
@@ -10,6 +10,7 @@ debug=False
 class Error(Exception): pass
 class NoTableError(Error): pass
 class QueryError(Error): pass
+class NoKeysError(Error):  pass
 
 class SQLResult(object):
 	__slots__=['_pos','_dictlist','count','results','lastrowid','sql','args','cols','table']
@@ -131,6 +132,7 @@ class DB_API(object):
 		elif type(val)==float: return "%f"%(val)
 		elif type(val)==buffer: return "X'%s'"%(str(val).encode('hex'))
 		else: return self.escape(str(val))
+	@staticmethod
 	def _abstract(*args,**kwargs): 
 		traceback.print_stack()
 		raise NotImplementedError,"call to abstract method"
@@ -268,7 +270,7 @@ class JDBC_API(DB_API):
 			self.count=len(self.results)
 	def __init__(self,database,**params):
 		for key,val in params.items(): setattr(self,key,val)
-		import jpype
+		import jpype #@UnresolvedImport
 		if not jpype.isJVMStarted():
 			if self.classpath: cpargs=['-Djava.class.path=%s'%':'.join(self.classpath)]
 			else: cpargs=[]
@@ -388,7 +390,7 @@ class DBConn(object):
 			if len(cond)==0: return ''
 			return " WHERE %s"%(' AND '.join(['(%s)'%x for x in cond]))
 	def create_table(self,name,coldef):
-		args=list(args)
+		#args=list(args)
 		result=self.api("CREATE TABLE %s (%s)"%(name,coldef))
 		result.table=name
 		return result
@@ -412,7 +414,7 @@ class DBConn(object):
 		return result
 
 if __name__=='__main__':
-	import readline,rlcompleter,sys
+	import readline,rlcompleter,sys #@UnusedImport
 	readline.parse_and_bind("tab: complete")
 	db=DBConn(sys.argv[1])
 	print "db:",db
