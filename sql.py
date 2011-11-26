@@ -183,7 +183,7 @@ class SQLite_API(DB_API):
 	def table_names(self):
 		return self("SELECT name FROM sqlite_master WHERE type in ('table','view')").col1
 	def has_table(self,name):
-		if self('SELECT 1 FROM sqlite_master WHERE type=? AND name=?',('table',name)): return True
+		if self('SELECT 1 FROM sqlite_master WHERE type=? AND name=?','table',name): return True
 		else: return False
 	def __call__(self,sql,*args):
 		if self.verbose>1: print 'Execute:',sql,args
