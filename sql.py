@@ -174,6 +174,10 @@ class SQLite_API(DB_API):
 			raise Error,"SQLite old buggy API, upgrade to at least 2.3.3"
 		self.dbapi=api
 		self.connection=api.connect(database,isolation_level=None)
+		try:
+			self.connection.create_function("REGEXP", 2, lambda expr,item: re.search(expr,item) is not None)
+		except Exception,e:
+			print >>sys.stderr, "Could not create REGEXP function"
 	def escape_string(self,s):
 		return s.replace("'","''")
 	def table_names(self):
