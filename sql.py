@@ -176,6 +176,7 @@ class SQLite_API(DB_API):
 		self.connection=api.connect(database,isolation_level=None)
 		try:
 			self.connection.create_function("REGEXP", 2, lambda expr,item: re.search(expr,item) is not None)
+			self.connection.create_function("REGEXP", 3, lambda data,pat,repl: re.sub(pat,repl,data))
 		except Exception,e:
 			print >>sys.stderr, "Could not create REGEXP function"
 	def escape_string(self,s):
