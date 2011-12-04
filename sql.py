@@ -317,7 +317,11 @@ class Eq(Condition):
 class Not(Condition):
 	def __str__(self):
 		if self.compareTo is None: return ' IS NOT NULL'
+		elif isinstance(self.compareTo, In): return " NOT%s"%(self.compareTo)
 		else: return '<>%s'%(self.p)
+	def args(self):
+		if isinstance(self.compareTo, In): return self.compareTo.args()
+		else: return super(Not,self).args()
 class Like(Condition):
 	def __str__(self):
 		if self.compareTo is None: return ' IS NULL'
@@ -329,8 +333,9 @@ class NotLike(Condition):
 class In(Condition):
 	def __str__(self):
 		if self.compareTo is None: return ' IS NULL'
-		else: return ' in (%s)'%(self.compareTo)
-	def args(self): return []
+		else: return ' in (%s)'%(",".join([self.p for x in self.compareTo]) if isinstance(self.compareTo, (list,tuple)) else self.compareTo)
+	def args(self):
+		return list(self.compareTo) if isinstance(self.compareTo, (list,tuple)) else []
 
 class DBConn(object):
 	api_list=[
