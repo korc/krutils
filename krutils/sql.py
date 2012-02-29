@@ -382,6 +382,7 @@ class DBConn(object):
 	def __getitem__(self,key): return self._tables[key]
 	def __init__(self,database,api=None,**api_args):
 		if api is None: api=self.api_list[0][1]
+		elif isinstance(api, (str,unicode)): api=filter(lambda x: x[0]==api,self.api_list)[0][1]
 		self.api=api(database,**api_args)
 		self.set_verbose(1)
 	def set_verbose(self,value):
