@@ -265,15 +265,17 @@ class MySQL_API(DB_API):
 
 class Postgres_API(DB_API):
 	identifier_quotechar='"'
-	class Result(DB_API.Result):
-		__slots__=[]
-		cursor_rowid_attr="oidValue"
 	def __init__(self, connstr):
-		from pyPgSQL import PgSQL as api
+		import psycopg2 as api
 		self.dbapi=api
 		self.connection=api.connect(connstr)
 	def table_names(self):
 		return self("select tablename from pg_tables where schemaname=%s","public")["tablename"]
+	def __call__(self, sql, *args):
+		try: return DB_API.__call__(self, sql, *args)
+		except self.dbapi.ProgrammingError:
+			self("ABORT")
+			raise
 
 class JDBC_API(DB_API):
 	classpath=[]
