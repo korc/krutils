@@ -33,7 +33,12 @@ class SQLResult(object):
 		if self.results or self.count>0: return True
 		return False
 	def __getitem__(self,key):
-		return self.results[key]
+		if isinstance(key, (int,long)):
+			return self.results[key]
+		elif key in self.pos:
+			idx=self.pos[key]
+			return [row[idx] for row in self]
+		else: raise ValueError("lookup key needs to be row index or column name")
 	def __init__(self,sql,*args):
 		self.sql=sql
 		self.args=args
@@ -99,10 +104,12 @@ class DB_API(object):
 	verbose=1
 	filename_pat=None
 	escapechar='\\';
+	identifier_quotechar="`"
 	oidstr="OID,"
 	p='%s'
 	class Result(SQLResult):
 		__slots__=[]
+		cursor_rowid_attr="lastrowid"
 		def parse_cursor(self,cursor):
 			self.count=cursor.rowcount
 			if cursor.description:
@@ -111,7 +118,7 @@ class DB_API(object):
 			else:
 				self.results=None
 				self.cols=None
-			self.lastrowid=cursor.lastrowid
+			if self.cursor_rowid_attr: self.lastrowid=getattr(cursor,self.cursor_rowid_attr)
 	class Table(SQLTable):
 		def get_keys(self):
 			return self.conn("SELECT column_name FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE TABLE_NAME=%s",self.name).col1
@@ -136,6 +143,8 @@ class DB_API(object):
 	def _abstract(*args,**kwargs): 
 		traceback.print_stack()
 		raise NotImplementedError,"call to abstract method"
+	def has_table(self,name):
+		return name in self.table_names()
 	has_table=_abstract
 	table_names=_abstract
 	def __call__(self,sql,*args):
@@ -254,6 +263,18 @@ class MySQL_API(DB_API):
 		cursor.close()
 		return ret
 
+class Postgres_API(DB_API):
+	identifier_quotechar='"'
+	class Result(DB_API.Result):
+		__slots__=[]
+		cursor_rowid_attr="oidValue"
+	def __init__(self, connstr):
+		from pyPgSQL import PgSQL as api
+		self.dbapi=api
+		self.connection=api.connect(connstr)
+	def table_names(self):
+		return self("select tablename from pg_tables where schemaname=%s","public")["tablename"]
+
 class JDBC_API(DB_API):
 	classpath=[]
 	driver='org.hsqldb.jdbcDriver'
@@ -343,6 +364,7 @@ class DBConn(object):
 		('sqlite',SQLite_API),
 		('mysql',MySQL_API),
 		('jdbc',JDBC_API),
+		('postgres',Postgres_API),
 	]
 	def __getattr__(self,key):
 		if key=='_tables':
@@ -371,13 +393,13 @@ class DBConn(object):
 	def scalar(self,tblname,cols,cond=None,*args):
 		args=list(args)
 		if tblname is None: tblname=""
-		else: tblname=" FROM `%s`"%(tblname)
+		else: tblname=" FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
 		return self.api.scalar("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 	def select(self,tblname,cols,cond=None,*args):
 		args=list(args)
 		if tblname is None: tblname=""
-		else: tblname=" FROM `%s`"%(tblname)
+		else: tblname=" FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
 		result=self.api("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 		if tblname is not None: result.table=tblname
