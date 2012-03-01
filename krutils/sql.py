@@ -456,7 +456,8 @@ class DBConn(object):
 			for k,vlist in cond.iteritems():
 				if type(vlist)!=list: vlist=[vlist]
 				for v in vlist:
-					if not isinstance(v,Condition): v=Eq(v,p=self.api.p)
+					if isinstance(v,Condition): v.p=self.api.p
+					else: v=Eq(v,p=self.api.p)
 					cond_list.append('%s%s'%(k,str(v)))
 					cond_args.extend(v.args())
 			argv[:0]=cond_args
