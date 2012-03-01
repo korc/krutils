@@ -471,6 +471,7 @@ class DBConn(object):
 		result.table=name
 		return result
 	def delete(self,tblname,cond,*args):
+		args=list(args)
 		result=self.api("DELETE FROM %s%s"%(tblname,self._condstr(cond,args)),*args)
 		result.table=tblname
 		return result
