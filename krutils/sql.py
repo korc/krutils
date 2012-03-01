@@ -183,6 +183,7 @@ class SQLite_API(DB_API):
 			raise Error,"SQLite old buggy API, upgrade to at least 2.3.3"
 		self.dbapi=api
 		self.connection=api.connect(database,isolation_level=None)
+		self.connection.text_factory=str
 		try:
 			self.connection.create_function("REGEXP", 2, lambda expr,item: re.search(expr,item) is not None)
 			self.connection.create_function("REGEXP", 3, lambda data,pat,repl: re.sub(pat,repl,data))
@@ -264,11 +265,13 @@ class MySQL_API(DB_API):
 		return ret
 
 class Postgres_API(DB_API):
+	oidstr=""
 	identifier_quotechar='"'
 	def __init__(self, connstr):
 		import psycopg2 as api
 		self.dbapi=api
 		self.connection=api.connect(connstr)
+		self.connection.set_isolation_level(api.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 	def table_names(self):
 		return self("select tablename from pg_tables where schemaname=%s","public")["tablename"]
 	def __call__(self, sql, *args):
