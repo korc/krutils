@@ -139,14 +139,10 @@ class DB_API(object):
 		elif type(val)==float: return "%f"%(val)
 		elif type(val)==buffer: return "X'%s'"%(str(val).encode('hex'))
 		else: return self.escape(str(val))
-	@staticmethod
-	def _abstract(*args,**kwargs): 
-		traceback.print_stack()
-		raise NotImplementedError,"call to abstract method"
+	def table_names(self,*args,**kwargs): 
+		raise NotImplementedError("%s API does not implement table_names"%(self.__class__.__name__))
 	def has_table(self,name):
 		return name in self.table_names()
-	has_table=_abstract
-	table_names=_abstract
 	def __call__(self,sql,*args):
 		if self.verbose>1: print 'Execute:',sql,args
 		ret=self.Result(sql,*args)
