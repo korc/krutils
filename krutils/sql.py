@@ -144,11 +144,13 @@ class DB_API(object):
 	def has_table(self,name):
 		return name in self.table_names()
 	def __call__(self,sql,*args):
-		if self.verbose>1: print 'Execute:',sql,args
+		if self.verbose>1: print 'Execute: %r, %r'%(sql,args)
 		ret=self.Result(sql,*args)
 		cursor=self.connection.cursor()
 		cursor.execute(sql,args)
 		ret.parse_cursor(cursor)
+		if self.verbose>0 and ret.count and ret.count>0 and (sql.lower().startswith("update ") or sql.lower().startswith("insert ")):
+			print '%d rows affected by %s'%(ret.count,sql),args
 		cursor.close()
 		return ret
 
@@ -419,10 +421,9 @@ class DBConn(object):
 		if api is None: api=self.api_list[0][1]
 		elif isinstance(api, (str,unicode)): api=filter(lambda x: x[0]==api,self.api_list)[0][1]
 		self.api=api(database,**api_args)
-		self.set_verbose(1)
-	def set_verbose(self,value):
-		self.verbose=value
-		self.api.verbose=value
+		self.verbose=1
+	def set_verbose(self,v): self.api.verbose=v
+	verbose=property(lambda self: self.api.verbose,set_verbose)
 	def clear_cache(self):
 		try: del self._tables
 		except AttributeError: pass
