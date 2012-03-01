@@ -149,7 +149,7 @@ class DB_API(object):
 		cursor=self.connection.cursor()
 		cursor.execute(sql,args)
 		ret.parse_cursor(cursor)
-		if self.verbose>0 and ret.count and ret.count>0 and (sql.lower().startswith("update ") or sql.lower().startswith("insert ")):
+		if self.verbose>0 and ret.count and ret.count>0 and (sql.lower().startswith("update ") or sql.lower().startswith("insert ") or sql.lower().startswith("delete ")):
 			print '%d rows affected by %s'%(ret.count,sql),args
 		cursor.close()
 		return ret
