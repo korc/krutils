@@ -327,6 +327,42 @@ class JDBC_API(DB_API):
 		if res.next(): return res.getString(3)
 		else: return False
 
+class NameAndCond(object):
+	def __init__(self,name,v):
+		self.name=name
+		if not isinstance(v,Condition): self.v=Eq(v)
+		else: self.v=v
+	def __str__(self):
+		self.v.p=self.p
+		return "%s%s"%(self.name,self.v)
+	def args(self):
+		return self.v.args()
+
+class CondList(object):
+	p="?"
+	def new_elem(self,src):
+		if isinstance(src,(CondList,NameAndCond)): return src
+		elif isinstance(src,dict):
+			if len(src)==1: op=lambda x: x
+			else: op=And
+			return op(*[NameAndCond(k,v) for k,v in src.iteritems()])
+		else: raise ValueError("Unknown data type",type(src))
+	def __init__(self,*elements,**attrs):
+		self.elements=map(self.new_elem,elements)
+		for k,v in attrs.iteritems(): setattr(self,k,v)
+	def __str__(self):
+		for x in self.elements: x.p=self.p
+		return "%s"%((" %s "%self.keyword).join(map(lambda x: "(%s)"%x,self.elements)))
+	def args(self):
+		ret=[]
+		map(lambda x: ret.extend(x.args()),self.elements)
+		return ret
+
+class Or(CondList):
+	keyword="OR"
+class And(CondList):
+	keyword="AND"
+
 class Condition(object):
 	def __init__(self,compareTo,p='?'):
 		self.compareTo=compareTo
@@ -410,6 +446,10 @@ class DBConn(object):
 	def _condstr(self,cond,argv):
 		if cond is None: return ''
 		elif type(cond) in (str,unicode): return " WHERE %s"%(cond)
+		elif isinstance(cond, CondList):
+			cond.p=self.api.p
+			argv[:0]=cond.args()
+			return " WHERE %s"%cond
 		elif type(cond)==dict:
 			cond_list=[]
 			cond_args=[]
