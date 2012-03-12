@@ -147,7 +147,8 @@ class DB_API(object):
 		if self.verbose>1: print 'Execute: %r, %r'%(sql,args)
 		ret=self.Result(sql,*args)
 		cursor=self.connection.cursor()
-		cursor.execute(sql,args)
+		if args: cursor.execute(sql,args)
+		else: cursor.execute(sql)
 		ret.parse_cursor(cursor)
 		if self.verbose>0 and ret.count and ret.count>0 and (sql.lower().startswith("update ") or sql.lower().startswith("insert ") or sql.lower().startswith("delete ")):
 			print '%d rows affected by %s'%(ret.count,sql),args
@@ -344,9 +345,13 @@ class CondList(object):
 	def new_elem(self,src):
 		if isinstance(src,(CondList,NameAndCond)): return src
 		elif isinstance(src,dict):
-			if len(src)==1: op=lambda x: x
-			else: op=And
-			return op(*[NameAndCond(k,v) for k,v in src.iteritems()])
+			ret=[]
+			for k,v in src.iteritems():
+				if isinstance(v,list):
+					ret.append(self.__class__(*map(lambda vp: NameAndCond(k,vp),v)))
+				else: ret.append(NameAndCond(k,v))
+			if len(ret)==1: return ret[0]
+			else: return And(*ret)
 		else: raise ValueError("Unknown data type",type(src))
 	def append(self,cond):
 		self.elements.append(self.new_elem(cond))
