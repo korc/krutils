@@ -271,7 +271,7 @@ class Postgres_API(DB_API):
 		self.connection=api.connect(connstr)
 		self.connection.set_isolation_level(api.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 	def table_names(self):
-		return self("select tablename from pg_tables where schemaname=%s union select viewname from pg_views where schemaname=%s","public","public")["tablename"]
+		return self("select tablename from pg_tables where schemaname=%s union select viewname from pg_views where schemaname=%s order by 1","public","public")["tablename"]
 	def __call__(self, sql, *args):
 		try: return DB_API.__call__(self, sql, *args)
 		except self.dbapi.ProgrammingError:
