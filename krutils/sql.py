@@ -348,6 +348,8 @@ class CondList(object):
 			else: op=And
 			return op(*[NameAndCond(k,v) for k,v in src.iteritems()])
 		else: raise ValueError("Unknown data type",type(src))
+	def append(self,cond):
+		self.elements.append(self.new_elem(cond))
 	def __init__(self,*elements,**attrs):
 		self.elements=map(self.new_elem,elements)
 		for k,v in attrs.iteritems(): setattr(self,k,v)
