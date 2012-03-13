@@ -372,9 +372,11 @@ class And(CondList):
 	keyword="AND"
 
 class Condition(object):
-	def __init__(self,compareTo,p='?'):
+	def __init__(self,compareTo,p='?',**attr):
 		self.compareTo=compareTo
 		self.p=p
+		for k,v in attr.iteritems(): setattr(self,k,v)
+	def __str__(self): return "%s%s"%(self.op,self.p)
 	def args(self):
 		if self.compareTo is None: return []
 		else: return [self.compareTo]
