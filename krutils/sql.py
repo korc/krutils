@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import re
-import traceback
 
 version=(0,2,20100119)
 
@@ -15,7 +14,7 @@ class NoKeysError(Error):  pass
 class SQLResult(object):
 	__slots__=['_pos','_dictlist','count','results','lastrowid','sql','args','cols','table']
 	def __repr__(self):
-		return "<%s.%s object at %s c=%d from %s>"%(self.__class__.__module__,self.__class__.__name__,hash(self),self.count,getattr(self,'table','UKN'))
+		return "<%s.%s object at %s c=%d%s>"%(self.__class__.__module__,self.__class__.__name__,hash(self),self.count," from %s"%self.table if hasattr(self,"table") else "")
 	def _get_pos(self):
 		try: self._pos
 		except AttributeError: self._pos=dict([(x,idx) for idx,x in enumerate(self.cols)])
@@ -107,6 +106,7 @@ class DB_API(object):
 	identifier_quotechar="`"
 	oidstr="OID,"
 	p='%s'
+	sql_tablename_re=re.compile(r'^(?:update|insert\s+into|(?:(?:delete|select.*?)\s+from))\s+(?P<quote>"?)(?P<table_name>[^\s",]+)(?P=quote)',re.I)
 	class Result(SQLResult):
 		__slots__=[]
 		cursor_rowid_attr="lastrowid"
@@ -134,7 +134,7 @@ class DB_API(object):
 		if val is None: return "NULL"
 		elif type(val) in (str,unicode):
 			if self.escapechar: val=val.replace(self.escapechar,'%s%s'%(self.escapechar,self.escapechar))
-			return "'%s'"%(val.replace("'","''"))
+			return (u"'%s'" if isinstance(val,unicode) else "'%s'")%(val.replace("'","''"))
 		elif type(val) in (int,long): return "%d"%(val)
 		elif type(val)==float: return "%f"%(val)
 		elif type(val)==buffer: return "X'%s'"%(str(val).encode('hex'))
@@ -146,6 +146,8 @@ class DB_API(object):
 	def __call__(self,sql,*args):
 		if self.verbose>1: print 'Execute: %r, %r'%(sql,args)
 		ret=self.Result(sql,*args)
+		m=self.sql_tablename_re.match(sql)
+		if m: ret.table=m.group("table_name")
 		cursor=self.connection.cursor()
 		if args: cursor.execute(sql,args)
 		else: cursor.execute(sql)
@@ -425,7 +427,9 @@ class DBConn(object):
 			return self._tables[key]
 		print "No %r in DBConn"%key
 		raise NoTableError,"Table %r not existng in database"%(key)
-	def __getitem__(self,key): return self._tables[key]
+	def __getitem__(self,key):
+		if key in self._tables: return self._tables[key]
+		else: return self.api.Table(key, self)
 	def __init__(self,database,api=None,**api_args):
 		if api is None: api=self.api_list[0][1]
 		elif isinstance(api, (str,unicode)): api=filter(lambda x: x[0]==api,self.api_list)[0][1]
@@ -446,10 +450,9 @@ class DBConn(object):
 		return self.api.scalar("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 	def select(self,tblname,cols,cond=None,*args):
 		args=list(args)
-		if tblname is None: tblname=""
-		else: tblname=" FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
+		sel_tbl="" if tblname is None else " FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
-		result=self.api("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
+		result=self.api("SELECT %s%s%s"%(cols,sel_tbl,self._condstr(cond,args)),*args)
 		if tblname is not None: result.table=tblname
 		return result
 	def _condstr(self,cond,argv):
