@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import re
+import warnings
 
 version=(0,2,20100119)
 
@@ -68,7 +69,8 @@ class SQLTable(object):
 		self.name=name
 	def get_keys(self): return []
 	def create(self,coldef): self.conn.create_table(self.name,coldef)
-	def select(self,cols='*',cond=None,*args): return self.conn.select(self.name,cols,cond,*args)
+	def select(self, cols='*', cond=None, *args, **kwargs):
+		return self.conn.select(self.name, cols, cond, *args, **kwargs)
 	__call__=select
 	def insert(self,inf): return self.conn.insert(self.name,inf)
 	def update(self,inf,cond,*args): return self.conn.update(self.name,inf,cond,*args)
@@ -448,11 +450,14 @@ class DBConn(object):
 		else: tblname=" FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
 		return self.api.scalar("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
-	def select(self,tblname,cols,cond=None,*args):
+	def select(self, tblname, cols, cond=None, *args, **kwargs):
+		order_by=kwargs.pop("order_by",None)
+		if kwargs:
+			warnings.warn(warnings.WarningMessage("Unknown keyword args",kwargs))
 		args=list(args)
 		sel_tbl="" if tblname is None else " FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
-		result=self.api("SELECT %s%s%s"%(cols,sel_tbl,self._condstr(cond,args)),*args)
+		result=self.api("SELECT %s%s%s%s"%(cols,sel_tbl,self._condstr(cond, args)," ORDER BY %s"%order_by if order_by else ""),*args)
 		if tblname is not None: result.table=tblname
 		return result
 	def _condstr(self,cond,argv):
