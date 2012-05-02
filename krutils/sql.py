@@ -272,6 +272,9 @@ class Postgres_API(DB_API):
 	identifier_quotechar='"'
 	def __init__(self, connstr):
 		import psycopg2 as api
+		import psycopg2.extensions
+		psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+		psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
 		self.dbapi=api
 		self.connection=api.connect(connstr)
 		self.connection.set_isolation_level(api.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
