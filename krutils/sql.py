@@ -394,7 +394,9 @@ class Eq(Condition):
 class Not(Condition):
 	def __str__(self):
 		if self.compareTo is None: return ' IS NOT NULL'
-		elif isinstance(self.compareTo, In): return " NOT%s"%(self.compareTo)
+		elif isinstance(self.compareTo, In):
+			self.compareTo.p=self.p
+			return " NOT%s"%(self.compareTo)
 		else: return '<>%s'%(self.p)
 	def args(self):
 		if isinstance(self.compareTo, In): return self.compareTo.args()
@@ -455,12 +457,19 @@ class DBConn(object):
 		return self.api.scalar("SELECT %s%s%s"%(cols,tblname,self._condstr(cond,args)),*args)
 	def select(self, tblname, cols, cond=None, *args, **kwargs):
 		order_by=kwargs.pop("order_by",None)
+		limit=kwargs.pop("limit",None)
 		if kwargs:
 			warnings.warn(warnings.WarningMessage("Unknown keyword args",kwargs))
 		args=list(args)
 		sel_tbl="" if tblname is None else " FROM %s%s%s"%(self.api.identifier_quotechar,tblname,self.api.identifier_quotechar)
 		if type(cols)==list: cols=','.join(cols)
-		result=self.api("SELECT %s%s%s%s"%(cols,sel_tbl,self._condstr(cond, args)," ORDER BY %s"%order_by if order_by else ""),*args)
+		result=self.api("SELECT %s"%"".join([
+				cols,
+				sel_tbl,
+				self._condstr(cond, args),
+				" ORDER BY %s"%order_by if order_by else "",
+				" LIMIT %s"%limit if limit is not None else "",
+			]),*args)
 		if tblname is not None: result.table=tblname
 		return result
 	def _condstr(self,cond,argv):
